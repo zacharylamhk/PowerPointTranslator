@@ -3,47 +3,122 @@ from tkinter import filedialog, ttk, messagebox
 from pptx import Presentation
 from deep_translator import GoogleTranslator
 import os
+from pptx.util import Pt
+import sys
+from io import StringIO
+
+class TextRedirector:
+    """Redirect stdout to a Tkinter Text widget"""
+    def __init__(self, widget):
+        self.widget = widget
+        self.buffer = StringIO()
+
+    def write(self, string):
+        self.buffer.write(string)
+        self.widget.insert(tk.END, string)
+        self.widget.see(tk.END)
+        self.widget.update_idletasks()
+
+    def flush(self):
+        self.buffer.seek(0)
+        self.buffer.truncate(0)
 
 def translate_text(text, source_language, target_language):
     """Translate text from source language to target language"""
     try:
-        if text.strip():
-            translator = GoogleTranslator(source=source_language, target=target_language)
-            translated = translator.translate(text)
-            return translated
-        return text
+        if not isinstance(text, str) or not text.strip():
+            print(f"Skipping invalid text: {text}")
+            return text if isinstance(text, str) else ""
+        translator = GoogleTranslator(source=source_language, target=target_language)
+        translated = translator.translate(text)
+        if translated is None:
+            print(f"Translation returned None for '{text}', keeping original")
+            return text
+        print(f"Translated '{text}' to '{translated}'")
+        return translated
     except Exception as e:
-        print(f"Translation error: {e}")
-        return text
+        print(f"Translation error for text '{text}': {e}")
+        return text if isinstance(text, str) else ""
 
-def translate_ppt(input_path, output_path, source_lang, target_lang, progress_label, total_slides):
-    """Translate PowerPoint file with page number updates"""
+def get_font_properties(run):
+    """Extract font properties from a run"""
+    font = run.font
+    props = {
+        'size': font.size.pt if font.size else None,
+        'name': font.name if font.name else None,
+        'bold': font.bold if font.bold is not None else False,
+        'italic': font.italic if font.italic is not None else False,
+        'underline': font.underline if font.underline is not None else False
+    }
+    print(f"Font properties for '{run.text}': {props}")
+    return props
+
+def apply_font_properties(run, properties):
+    """Apply font properties to a run, handling None values safely"""
+    font = run.font
+    try:
+        # Skip if all properties are None/default
+        if (properties['size'] is None and 
+            properties['name'] is None and 
+            not properties['bold'] and 
+            not properties['italic'] and 
+            not properties['underline']):
+            print(f"Skipping font application for '{run.text}' (all properties default)")
+            return
+        
+        if properties['size'] is not None:
+            font.size = Pt(properties['size'])
+        if properties['name'] is not None:
+            font.name = properties['name']
+        font.bold = properties['bold'] if properties['bold'] is not None else False
+        font.italic = properties['italic'] if properties['italic'] is not None else False
+        font.underline = properties['underline'] if properties['underline'] is not None else False
+    except AttributeError as e:
+        print(f"Error applying font properties to '{run.text}': {e}")
+
+def translate_ppt(input_path, output_path, source_lang, target_lang, progress_label, total_slides, log_widget):
+    """Translate PowerPoint file with page number updates and preserve font"""
     try:
         prs = Presentation(input_path)
         slide_count = len(prs.slides)
         
         for i, slide in enumerate(prs.slides, 1):
             for shape in slide.shapes:
-                if hasattr(shape, "text") and shape.text:
-                    shape.text = translate_text(shape.text, source_lang, target_lang)
+                if hasattr(shape, "text_frame") and shape.text_frame:
+                    for paragraph in shape.text_frame.paragraphs:
+                        for run in paragraph.runs:
+                            if run.text:
+                                font_props = get_font_properties(run)
+                                translated = translate_text(run.text, source_lang, target_lang)
+                                run.text = translated if translated is not None else run.text
+                                apply_font_properties(run, font_props)
                 
                 if shape.has_table:
                     for row in shape.table.rows:
                         for cell in row.cells:
-                            if cell.text:
-                                cell.text = translate_text(cell.text, source_lang, target_lang)
+                            for paragraph in cell.text_frame.paragraphs:
+                                for run in paragraph.runs:
+                                    if run.text:
+                                        font_props = get_font_properties(run)
+                                        translated = translate_text(run.text, source_lang, target_lang)
+                                        run.text = translated if translated is not None else run.text
+                                        apply_font_properties(run, font_props)
                 
                 if shape.has_chart:
                     chart = shape.chart
                     for series in chart.series:
                         if series.name:
-                            series.name = translate_text(series.name, source_lang, target_lang)
+                            translated = translate_text(series.name, source_lang, target_lang)
+                            series.name = translated if translated is not None else series.name
                     if chart.has_title:
-                        chart.chart_title.text_frame.text = translate_text(
-                            chart.chart_title.text_frame.text, source_lang, target_lang
-                        )
+                        for paragraph in chart.chart_title.text_frame.paragraphs:
+                            for run in paragraph.runs:
+                                if run.text:
+                                    font_props = get_font_properties(run)
+                                    translated = translate_text(run.text, source_lang, target_lang)
+                                    run.text = translated if translated is not None else run.text
+                                    apply_font_properties(run, font_props)
             
-            # Update progress label with page number
             progress_label.config(text=f"{i}/{slide_count}")
             progress_label.update()
 
@@ -53,13 +128,13 @@ def translate_ppt(input_path, output_path, source_lang, target_lang, progress_la
     except Exception as e:
         messagebox.showerror("Error", f"Error processing presentation: {e}")
     finally:
-        progress_label.config(text="0/0")  # Reset progress label
+        progress_label.config(text="0/0")
 
 class PPTTranslatorApp:
     def __init__(self, root):
         self.root = root
         self.root.title("PowerPoint Translator")
-        self.root.geometry("500x250")  # Reduced height since Language Reference is removed
+        self.root.geometry("500x400")
 
         # Variables
         self.input_path = tk.StringVar()
@@ -71,35 +146,34 @@ class PPTTranslatorApp:
         self.languages = GoogleTranslator().get_supported_languages(as_dict=True)
 
         # GUI Elements
-        # Input file
         tk.Label(root, text="Source PPTX:").grid(row=0, column=0, padx=5, pady=5, sticky="e")
         tk.Entry(root, textvariable=self.input_path, width=40).grid(row=0, column=1, padx=5, pady=5)
         tk.Button(root, text="Browse", command=self.browse_input).grid(row=0, column=2, padx=5, pady=5)
 
-        # Output file
         tk.Label(root, text="Output PPTX:").grid(row=1, column=0, padx=5, pady=5, sticky="e")
         tk.Entry(root, textvariable=self.output_path, width=40).grid(row=1, column=1, padx=5, pady=5)
         tk.Button(root, text="Browse", command=self.browse_output).grid(row=1, column=2, padx=5, pady=5)
 
-        # Source language
         tk.Label(root, text="Source Language:").grid(row=2, column=0, padx=5, pady=5, sticky="e")
         source_combo = ttk.Combobox(root, textvariable=self.source_lang, width=37)
         source_combo['values'] = ['auto'] + list(self.languages.keys())
         source_combo.grid(row=2, column=1, padx=5, pady=5)
 
-        # Target language
         tk.Label(root, text="Target Language:").grid(row=3, column=0, padx=5, pady=5, sticky="e")
         target_combo = ttk.Combobox(root, textvariable=self.target_lang, width=37)
         target_combo['values'] = list(self.languages.keys())
         target_combo.grid(row=3, column=1, padx=5, pady=5)
 
-        # Progress label (replacing progress bar)
         tk.Label(root, text="Progress:").grid(row=4, column=0, padx=5, pady=5, sticky="e")
         self.progress_label = tk.Label(root, text="0/0", width=40)
         self.progress_label.grid(row=4, column=1, columnspan=2, padx=5, pady=5)
 
-        # Translate button
-        tk.Button(root, text="Translate", command=self.translate).grid(row=5, column=1, pady=20)
+        tk.Label(root, text="Log:").grid(row=5, column=0, padx=5, pady=5, sticky="ne")
+        self.log_text = tk.Text(root, height=8, width=40, state='normal')
+        self.log_text.grid(row=5, column=1, columnspan=2, padx=5, pady=5)
+        self.log_text.config(state='disabled')
+
+        tk.Button(root, text="Translate", command=self.translate).grid(row=6, column=1, pady=20)
 
     def browse_input(self):
         """Open file dialog for input file"""
@@ -132,8 +206,12 @@ class PPTTranslatorApp:
             messagebox.showerror("Error", "Input file not found!")
             return
         
-        # Disable translate button during processing
         self.root.children['!button3'].config(state='disabled')
+        self.log_text.config(state='normal')
+        self.log_text.delete(1.0, tk.END)
+        
+        original_stdout = sys.stdout
+        sys.stdout = TextRedirector(self.log_text)
         
         try:
             prs = Presentation(self.input_path.get())
@@ -144,10 +222,12 @@ class PPTTranslatorApp:
                 self.source_lang.get(),
                 self.target_lang.get(),
                 self.progress_label,
-                total_slides
+                total_slides,
+                self.log_text
             )
         finally:
-            # Re-enable translate button
+            sys.stdout = original_stdout
+            self.log_text.config(state='disabled')
             self.root.children['!button3'].config(state='normal')
 
 def main():
