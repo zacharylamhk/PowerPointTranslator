@@ -32,5 +32,34 @@ A Python application with a graphical user interface (GUI) to translate PowerPoi
   #Run the Program
   python PPTTranslatorApp.py
 
+## Supported Languages
+The application uses deep-translator with Google Translate, supporting numerous languages. Refer to the "Language Reference" section in the GUI for a complete list of language codes and names.
+Limitations
+Requires an internet connection for translation
 
+Subject to Google Translate's rate limits
+
+Formatting may not be perfectly preserved in complex slides
+
+Progress bar updates per slide, not per text element
+
+## Contributing
+Fork the repository
+
+Create a feature branch (git checkout -b feature/new-feature)
+
+Commit your changes (git commit -m "Add new feature")
+
+Push to the branch (git push origin feature/new-feature)
+
+Create a Pull Request
+
+## License
+This project is licensed under the MIT License - see the LICENSE file for details.
+Acknowledgments
+Built with python-pptx
+
+Translation powered by deep-translator
+
+GUI created using Tkinter
 
