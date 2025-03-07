@@ -16,8 +16,8 @@ def translate_text(text, source_language, target_language):
         print(f"Translation error: {e}")
         return text
 
-def translate_ppt(input_path, output_path, source_lang, target_lang, progress_bar, total_slides):
-    """Translate PowerPoint file with progress updates"""
+def translate_ppt(input_path, output_path, source_lang, target_lang, progress_label, total_slides):
+    """Translate PowerPoint file with page number updates"""
     try:
         prs = Presentation(input_path)
         slide_count = len(prs.slides)
@@ -43,10 +43,9 @@ def translate_ppt(input_path, output_path, source_lang, target_lang, progress_ba
                             chart.chart_title.text_frame.text, source_lang, target_lang
                         )
             
-            # Update progress bar
-            progress = (i / slide_count) * 100
-            progress_bar['value'] = progress
-            progress_bar.update()
+            # Update progress label with page number
+            progress_label.config(text=f"{i}/{slide_count}")
+            progress_label.update()
 
         prs.save(output_path)
         messagebox.showinfo("Success", f"Translation completed!\nSaved as: {output_path}")
@@ -54,13 +53,13 @@ def translate_ppt(input_path, output_path, source_lang, target_lang, progress_ba
     except Exception as e:
         messagebox.showerror("Error", f"Error processing presentation: {e}")
     finally:
-        progress_bar['value'] = 0  # Reset progress bar
+        progress_label.config(text="0/0")  # Reset progress label
 
 class PPTTranslatorApp:
     def __init__(self, root):
         self.root = root
         self.root.title("PowerPoint Translator")
-        self.root.geometry("500x400")  # Increased height to accommodate progress bar
+        self.root.geometry("500x250")  # Reduced height since Language Reference is removed
 
         # Variables
         self.input_path = tk.StringVar()
@@ -94,21 +93,13 @@ class PPTTranslatorApp:
         target_combo['values'] = list(self.languages.keys())
         target_combo.grid(row=3, column=1, padx=5, pady=5)
 
-        # Language names display
-        tk.Label(root, text="Language Reference:").grid(row=4, column=0, padx=5, pady=5, sticky="ne")
-        lang_display = tk.Text(root, height=8, width=40)
-        lang_display.grid(row=4, column=1, padx=5, pady=5, columnspan=2)
-        for code, lang in sorted(self.languages.items(), key=lambda x: x[1]):
-            lang_display.insert(tk.END, f"{code}: {lang}\n")
-        lang_display.config(state='disabled')
-
-        # Progress bar
-        tk.Label(root, text="Progress:").grid(row=5, column=0, padx=5, pady=5, sticky="e")
-        self.progress = ttk.Progressbar(root, length=300, mode='determinate')
-        self.progress.grid(row=5, column=1, columnspan=2, padx=5, pady=5)
+        # Progress label (replacing progress bar)
+        tk.Label(root, text="Progress:").grid(row=4, column=0, padx=5, pady=5, sticky="e")
+        self.progress_label = tk.Label(root, text="0/0", width=40)
+        self.progress_label.grid(row=4, column=1, columnspan=2, padx=5, pady=5)
 
         # Translate button
-        tk.Button(root, text="Translate", command=self.translate).grid(row=6, column=1, pady=20)
+        tk.Button(root, text="Translate", command=self.translate).grid(row=5, column=1, pady=20)
 
     def browse_input(self):
         """Open file dialog for input file"""
@@ -152,7 +143,7 @@ class PPTTranslatorApp:
                 self.output_path.get(),
                 self.source_lang.get(),
                 self.target_lang.get(),
-                self.progress,
+                self.progress_label,
                 total_slides
             )
         finally:
