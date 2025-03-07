@@ -17,30 +17,18 @@ A Python application with a graphical user interface (GUI) to translate PowerPoi
   pip install python-pptx
   pip install deep-translator
 
-Installation
-Clone the repository:
-bash
+  #Installation
+  
+  #Clone the repository:
+  git clone https://github.com/zacharylamhk/PowerPointTranslator.git
+  cd powerpoint-translator
+  
+  #Install dependencies:
+  pip install -r requirements.txt
 
-git clone https://github.com/yourusername/powerpoint-translator.git
-cd powerpoint-translator
+  python PPTTranslatorApp.py
 
-Install dependencies:
-bash
 
-pip install -r requirements.txt
-
-(Create a requirements.txt with python-pptx and deep-translator if desired)
-
-Run the application:
-bash
-
-python PPTTranslatorApp.py
-
-Usage
-Launch the application:
-bash
-
-python PPTTranslatorApp.py
 
 Use the GUI to:
 Click "Browse" to select your input PowerPoint file
