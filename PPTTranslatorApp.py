@@ -54,27 +54,49 @@ def get_font_properties(run):
     return props
 
 def apply_font_properties(run, properties):
-    """Apply font properties to a run, handling None values safely"""
+    """Apply font properties to a run with detailed error catching"""
     font = run.font
     try:
-        # Skip if all properties are None/default
-        if (properties['size'] is None and 
-            properties['name'] is None and 
-            not properties['bold'] and 
-            not properties['italic'] and 
-            not properties['underline']):
-            print(f"Skipping font application for '{run.text}' (all properties default)")
-            return
+        # Log before applying each property
+        print(f"Applying properties to '{run.text}': {properties}")
         
         if properties['size'] is not None:
-            font.size = Pt(properties['size'])
+            try:
+                font.size = Pt(properties['size'])
+                print(f"Set size to {properties['size']} for '{run.text}'")
+            except AttributeError as e:
+                print(f"Failed to set size for '{run.text}': {e}")
+        
+        # Temporarily skip name to isolate the issue
         if properties['name'] is not None:
-            font.name = properties['name']
-        font.bold = properties['bold'] if properties['bold'] is not None else False
-        font.italic = properties['italic'] if properties['italic'] is not None else False
-        font.underline = properties['underline'] if properties['underline'] is not None else False
-    except AttributeError as e:
-        print(f"Error applying font properties to '{run.text}': {e}")
+            print(f"Skipping font name '{properties['name']}' for '{run.text}' to avoid error")
+            # Uncomment below to test if name is the issue
+            # try:
+            #     font.name = properties['name']
+            #     print(f"Set name to {properties['name']} for '{run.text}'")
+            # except AttributeError as e:
+            #     print(f"Failed to set name for '{run.text}': {e}")
+        
+        try:
+            font.bold = properties['bold'] if properties['bold'] is not None else False
+            print(f"Set bold to {properties['bold']} for '{run.text}'")
+        except AttributeError as e:
+            print(f"Failed to set bold for '{run.text}': {e}")
+        
+        try:
+            font.italic = properties['italic'] if properties['italic'] is not None else False
+            print(f"Set italic to {properties['italic']} for '{run.text}'")
+        except AttributeError as e:
+            print(f"Failed to set italic for '{run.text}': {e}")
+        
+        try:
+            font.underline = properties['underline'] if properties['underline'] is not None else False
+            print(f"Set underline to {properties['underline']} for '{run.text}'")
+        except AttributeError as e:
+            print(f"Failed to set underline for '{run.text}': {e}")
+            
+    except Exception as e:
+        print(f"Unexpected error applying font properties to '{run.text}': {e}")
 
 def translate_ppt(input_path, output_path, source_lang, target_lang, progress_label, total_slides, log_widget):
     """Translate PowerPoint file with page number updates and preserve font"""
